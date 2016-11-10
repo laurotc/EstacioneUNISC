@@ -1,5 +1,7 @@
 package com.laurotc.estacionamentos_tcc2;
 
+import android.graphics.Color;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.PendingIntent;
 import android.support.annotation.NonNull;
@@ -14,9 +16,12 @@ import android.content.SharedPreferences;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.app.FragmentActivity;
 import android.location.Location;
-import android.view.View;
+import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.Toolbar;
 import android.util.Log;
 
+import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -29,6 +34,7 @@ import com.google.android.gms.common.api.Status;
 
 import com.google.android.gms.location.ActivityRecognition;
 import com.google.android.gms.location.ActivityRecognitionRequest;
+import com.google.android.gms.location.ActivityRecognitionResult;
 import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationServices;
@@ -36,17 +42,38 @@ import com.google.android.gms.location.LocationSettingsRequest;
 import com.google.android.gms.location.LocationSettingsResult;
 import com.google.android.gms.location.DetectedActivity;
 
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.TileOverlay;
+import com.google.android.gms.maps.model.TileOverlayOptions;
+import com.google.android.gms.maps.model.TileProvider;
+import com.google.maps.android.MarkerManager;
+import com.google.maps.android.clustering.ClusterItem;
+import com.google.maps.android.clustering.ClusterManager;
+import com.google.maps.android.heatmaps.Gradient;
+import com.google.maps.android.heatmaps.HeatmapTileProvider;
+import com.google.maps.android.heatmaps.WeightedLatLng;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 
-public class MainActivity extends FragmentActivity
+import static android.R.id.list;
+
+public class MainActivity extends AppCompatActivity
         implements OnMapReadyCallback,
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
@@ -54,59 +81,55 @@ public class MainActivity extends FragmentActivity
         ResultCallback<Status>
 {
 
-    private GoogleMap mMap;
+    protected static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
+
     private Location myCurrentLocation;
     private LocationRequest mLocationRequest;
-    private ActivityRecognitionRequest mActivitiesRequest;
-    private EditText longitudeText, latitudeText, speedText, accelerationText;
-    private TextView type;
-    private long detectionInterval = 50;
-    protected static final String TAG = "MainActivity";
+    private GoogleMap mMap;
+    private Marker marker;
+    private LatLngBounds uniscBounds;
+    private LatLng uniscNE = new LatLng(Constants.NE_BOUND_LAT, Constants.NE_BOUND_LONG);
+    private LatLng uniscSW = new LatLng(Constants.SW_BOUND_LAT, Constants.SW_BOUND_LONG);
 
-    /**
-     * A receiver for DetectedActivity objects broadcast by the
-     * {@code ActivityDetectionIntentService}.
-     */
+    private TextView type, longitudeText, latitudeText, speedText;
+    private Button updateMapButton, clusterMapButton, heatmapMapButton, markerMapButton;
+    private boolean viewClusters, viewHeatmaps, viewMarkers;
+    private ClusterManager<ClusterItemMap> mClusterManager;
+
+    final private DatabaseHandler db = new DatabaseHandler(this);
+
+    //A receiver for DetectedActivity objects broadcast
     protected ActivityDetectionBroadcastReceiver mBroadcastReceiver;
 
-    /**
-     * The DetectedActivities that we track in this sample. We use this for initializing the
-     * {@code DetectedActivitiesAdapter}. We also use this for persisting state in
-     * {@code onSaveInstanceState()} and restoring it in {@code onCreate()}. This ensures that each
-     * activity is displayed with the correct confidence level upon orientation changes.
-     */
+    //The DetectedActivities that is tracked
+    private PendingIntent pendingIntent;
     private ArrayList<DetectedActivity> mDetectedActivities;
-
-    //private SensorManager mSensorManager;
-    //private Sensor mAccelerometer;
-    //private double acceleration;
-    //private double gravity = 9.8;
+    private ActivityRecognitionRequest mActivitiesRequest;
+    private boolean detectActivityRunning = false;
+    private TileOverlay mOverlay = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
 
-        longitudeText = (EditText) findViewById(R.id.longitudeText);
-        latitudeText = (EditText) findViewById(R.id.latitudeText);
+        Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        toolbar.setTitleTextColor(0xFFFFFFFF); //White
+        setSupportActionBar(toolbar);
+
+        longitudeText = (TextView) findViewById(R.id.longitudeText);
+        latitudeText = (TextView) findViewById(R.id.latitudeText);
+        speedText = (TextView) findViewById(R.id.speedText);
         type = (TextView) findViewById(R.id.type);
-        speedText = (EditText) findViewById(R.id.speedText);
-        //accelerationText = (EditText) findViewById(R.id.accelerationText);
+        updateMapButton = (Button) findViewById(R.id.update);
+        /*clusterMapButton = (Button) findViewById(R.id.cluster);
+        markerMapButton = (Button) findViewById(R.id.marker);
+        heatmapMapButton = (Button) findViewById(R.id.heatmap);*/
 
-        //Obtain the SupportMapFragment and get notified when the map is ready to be used.
-        //SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
-        //        .findFragmentById(R.id.map);
-        //mapFragment.getMapAsync(this);
-
-        mGoogleApiClient = new GoogleApiClient.Builder(this)
-                .addConnectionCallbacks(this)
-                .addOnConnectionFailedListener(this)
-                .addApi(LocationServices.API)
-                .addApi(ActivityRecognition.API)
-                .build();
 
         mBroadcastReceiver = new ActivityDetectionBroadcastReceiver();
+        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver, new IntentFilter(Constants.BROADCAST_ACTION));
 
         // Reuse the value of mDetectedActivities from the bundle if possible. This maintains state
         // across device orientation changes. If mDetectedActivities is not stored in the bundle,
@@ -121,28 +144,16 @@ public class MainActivity extends FragmentActivity
                 mDetectedActivities.add(new DetectedActivity(Constants.MONITORED_ACTIVITIES[i], 0));
             }
         }
+
+        connectGoogleServices();
+        initGoogleMap();
+        uniscBounds = new LatLngBounds(uniscSW, uniscNE);
     }
-
-
-    /**
-     * Manipulates the map once available. This callback is triggered when the map is ready to be used.
-     */
-    @Override
-    public void onMapReady(GoogleMap googleMap) {
-        mMap = googleMap;
-
-        // Add a marker in SCS and move the camera
-        LatLng scs = new LatLng(-29.7301234,-52.4306520);
-        mMap.addMarker(new MarkerOptions().position(scs).title("Marker in SCS"));
-        mMap.moveCamera(CameraUpdateFactory.newLatLng(scs));
-    }
-
 
     /*****
      * App behavior functions
      */
     protected void onStart() {
-        /* Connect to Google API Client*/
         mGoogleApiClient.connect();
         super.onStart();
     }
@@ -154,120 +165,187 @@ public class MainActivity extends FragmentActivity
 
     @Override
     protected void onPause() {
-        super.onPause();
-        //stopLocationUpdates();
-        //mSensorManager.unregisterListener(this);
         //LocalBroadcastManager.getInstance(this).unregisterReceiver(mBroadcastReceiver);
+        //stopLocationUpdates();
+        super.onPause();
     }
 
     @Override
     public void onResume() {
         super.onResume();
-        //if (mGoogleApiClient.isConnected()) {
-        //    startLocationUpdates();
-        //}
-        LocalBroadcastManager.getInstance(this).registerReceiver(mBroadcastReceiver,
-                new IntentFilter(Constants.BROADCAST_ACTION));
+        //if (mGoogleApiClient.isConnected()) { startLocationUpdates(); }
+    }
+
+    /*****
+     * Connect to Google API Services
+     */
+    protected synchronized void connectGoogleServices() {
+        mGoogleApiClient = new GoogleApiClient.Builder(this)
+                .addConnectionCallbacks(this)
+                .addOnConnectionFailedListener(this)
+                .addApi(LocationServices.API)
+                .addApi(ActivityRecognition.API)
+                .build();
+    }
+
+    @Override
+    public void onConnected(Bundle bundle) {
+        //LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder().addLocationRequest(mLocationRequest);
+        //PendingResult<LocationSettingsResult> result = LocationServices.SettingsApi.checkLocationSettings(mGoogleApiClient, builder.build());
+        this.createLocationRequest();
+        this.startLocationUpdates();
+        if (!detectActivityRunning) {
+            this.startActivitiesUpdates();
+        }
+        updateLocationInfo();
+    }
+
+    @Override
+    public void onConnectionFailed(ConnectionResult connectionResult) {
+        Log.i(TAG, "Connection failed: ERROR" + connectionResult.getErrorCode());
+    }
+
+    @Override
+    public void onConnectionSuspended(int cause) {
+        mGoogleApiClient.connect();
+    }
+
+
+    /*****
+     * Manipulates the map when it's available. This callback is triggered when the map is ready to be used.
+     */
+    protected void initGoogleMap() {
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager()
+                .findFragmentById(R.id.map);
+        mapFragment.getMapAsync(this);
+    }
+
+    @Override
+    public void onMapReady(GoogleMap googleMap) {
+        try {
+            mMap = googleMap;
+            //mMap.setMaxZoomPreference(17);
+            //mMap.setMinZoomPreference(15);
+            mMap.setMyLocationEnabled(true);
+            mMap.getUiSettings().setZoomControlsEnabled(true);
+
+            DeviceInfo deviceInfo = db.getTableData();
+            viewClusters = true;
+            viewHeatmaps = false;
+            viewMarkers = false;
+
+            if (deviceInfo.getStatus() == Constants.PARKED || deviceInfo.getStatus() == Constants.NOT_PARKED) {
+                Log.i(TAG, "new data -> Lat: " + deviceInfo.getLatitude() + " | Long: "
+                        + deviceInfo.getLongitude() + " | Parked: " + deviceInfo.getStatus());
+
+                this.type.setText("Last status saved: " + Constants.getStatusString(deviceInfo.getStatus()));
+                LatLng latlng = new LatLng(deviceInfo.getLatitude(), deviceInfo.getLongitude());
+                addMarkerMap(latlng);
+
+                updateMapData(db.getTableData());
+            }
+
+            /*Button actions*/
+            updateMapButton.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    updateMapData(db.getTableData());
+                }
+            });
+
+            /*clusterMapButton.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    viewClusters = true;
+                    viewHeatmaps = false;
+                    viewMarkers = false;
+                    updateMapData(db.getTableData());
+                }
+            });
+
+            heatmapMapButton.setOnClickListener(new View.OnClickListener() {
+                public void onClick(View v) {
+                    viewHeatmaps = true;
+                    viewClusters = false;
+                    viewMarkers = false;
+                    updateMapData(db.getTableData());
+                }
+            });
+
+            markerMapButton.setOnClickListener(new View.OnClickListener() {
+
+                public void onClick(View v) {
+                    viewMarkers = true;
+                    viewHeatmaps = false;
+                    viewClusters = false;
+                    updateMapData(db.getTableData());
+                    addMarkerMap(marker.getPosition());
+                }
+            });*/
+        }
+        catch (Exception e) {
+            Log.e(TAG, e.getMessage());
+        }
+    }
+
+    public void addMarkerMap(LatLng latlng) {
+        this.marker = mMap.addMarker(new MarkerOptions().position(latlng).title("Você estacionou aqui"));
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngZoom(latlng, 17);
+        mMap.animateCamera(cameraUpdate);
+    }
+
+    public void removeMarkerMap(Marker marker) {
+        marker.remove();
     }
 
 
     /*****
      * Location functions
      */
-    protected void startLocationUpdates() {
-        LocationServices.FusedLocationApi.requestLocationUpdates(
-                mGoogleApiClient, mLocationRequest, this);
-    }
-
-    protected void stopLocationUpdates() {
-        LocationServices.FusedLocationApi.removeLocationUpdates(
-                mGoogleApiClient, this);
-    }
-
     protected void createLocationRequest() {
         mLocationRequest = new LocationRequest();
         mLocationRequest.setInterval(50);
         mLocationRequest.setFastestInterval(50);
-        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+        mLocationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);//PRIORITY_BALANCED_POWER_ACCURACY
+    }
+
+    protected void startLocationUpdates() {
+        LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
+    }
+
+    protected void stopLocationUpdates() {
+        LocationServices.FusedLocationApi.removeLocationUpdates(mGoogleApiClient, this);
     }
 
     @Override
     public void onLocationChanged(Location location) {
         myCurrentLocation = location;
-        this.updateUI();
+        updateLocationInfo();
     }
 
-
-    /*****
-     * Update user interface function
-     */
-    private void updateUI() {
-        if (myCurrentLocation!=null) {
-            double speedKmh = myCurrentLocation.getSpeed() * (3.6);  // m/s*(3.6) = km/h
-            latitudeText.setText(String.valueOf(myCurrentLocation.getLatitude()));
-            longitudeText.setText(String.valueOf(myCurrentLocation.getLongitude()));
-            speedText.setText(String.valueOf(speedKmh + " km/h"));
-
-            //Person speed avg: 7kmh
-            //Running speed avg: 15kmh
-            //Biking speed avg: 20kmh (not used for now)
-        /*
-        if (speedKmh <= 15 && speedKmh > 7) {
-            type.setText(String.valueOf("Running"));
-        }
-        else if (speedKmh <= 7) {
-            type.setText(String.valueOf("Walking or stopped"));
-        }
-        else {
-            type.setText(String.valueOf("Probably Car"));
-        }
-        */
-        }
+    public void onStartService(View v) {
+        Intent i = new Intent(this, DetectActivityIntent.class);
+        startService(i);
     }
-
-
-    /*****
-     * On connected to Google API functions
-     */
-    @Override
-    public void onConnected(@Nullable Bundle bundle) {
-
-        LocationSettingsRequest.Builder builder = new LocationSettingsRequest.Builder()
-                .addLocationRequest(mLocationRequest);
-        PendingResult<LocationSettingsResult> result = LocationServices.SettingsApi.
-                checkLocationSettings(mGoogleApiClient, builder.build());
-
-        this.createLocationRequest();
-        this.startLocationUpdates();
-        this.startActivitiesUpdates();
-
-        myCurrentLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
-
-        this.updateUI();
-    }
-
-    @Override
-    public void onConnectionSuspended(int i) {}
-
-    @Override
-    public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {}
-
 
     /******
      * Detect Activities functions
      */
-    protected void startActivitiesUpdates() {
-        ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(mGoogleApiClient,
-                Constants.DETECTION_INTERVAL_IN_MILLISECONDS, getActivityDetectionPendingIntent());
-    }
-
 
     /*
-     * Runs when the result of calling requestActivityUpdates() and removeActivityUpdates() becomes
-     * available. Either method can complete successfully or with an error.
-     *
-     * @param status The Status returned through a PendingIntent when requestActivityUpdates()
-     *               or removeActivityUpdates() are called.
+     * Start activities update
+     */
+    protected void startActivitiesUpdates() {
+        Intent intent = new Intent(this, DetectActivityIntent.class);
+        this.startService(intent);
+
+        pendingIntent = PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
+        ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(mGoogleApiClient, Constants.DETECTION_INTERVAL_IN_MILLISECONDS, pendingIntent);
+
+        detectActivityRunning = true;
+    }
+
+    /*
+     * Called when the result of calling requestActivityUpdates() and removeActivityUpdates() are available.
+     * @param status Status returned through a PendingIntent when requestActivityUpdates() or removeActivityUpdates() are called.
      */
     public void onResult(Status status) {
         if (status.isSuccess()) {
@@ -280,6 +358,319 @@ public class MainActivity extends FragmentActivity
     }
 
     /**
+     * Receiver for intents sent by DetectedActivitiesIntentService via a sendBroadcast().
+     * Receives a list of one or more DetectedActivity objects associated with the current state of the device.
+     */
+    public class ActivityDetectionBroadcastReceiver extends BroadcastReceiver {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            ArrayList<DetectedActivity> updatedActivities = intent.getParcelableArrayListExtra(Constants.ACTIVITY_EXTRA);
+
+            try {
+                updateDetectedActivities(updatedActivities);
+            } catch (Exception e) {
+                Log.e(TAG, "Error detecting or sending data do server: " + e.getMessage());
+            }
+        }
+    }
+
+    /*****
+     * Update user interface function
+     */
+    private void updateLocationInfo() {
+        if (myCurrentLocation!=null) {
+            latitudeText.setText(String.valueOf("Lat: " + myCurrentLocation.getLatitude()));
+            longitudeText.setText(String.valueOf("Long: " + myCurrentLocation.getLongitude()));
+
+            double speedKmh = Constants.speedInKmh(myCurrentLocation.getSpeed());
+            speedText.setText(String.valueOf(speedKmh + " km/h "));
+        }
+    }
+
+    private void updateMapData(DeviceInfo deviceInfo) {
+        try {
+
+            String jsonDevice = Utils.makeJsonDevice(deviceInfo, Constants.READ, this);
+            new CallServerHandler().execute(jsonDevice);
+        }
+        catch (Exception e) {
+            Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /*
+     * Updates the list of activities with the new confidence level
+     */
+    public void updateDetectedActivities(ArrayList<DetectedActivity> detectedActivities) throws UnsupportedEncodingException, JSONException {
+        //If Google API is not connected and current location is off, it connects again before update info
+        if (mGoogleApiClient == null && myCurrentLocation == null) {
+            connectGoogleServices();
+        }
+
+        //Add all detected activities to a Map (type, confidence)
+        HashMap<Integer, Integer> detectedActivitiesMap = new HashMap<>();
+        for (DetectedActivity activity : detectedActivities) {
+            detectedActivitiesMap.put(activity.getType(), activity.getConfidence());
+        }
+
+        // Every time the app detect new activities, it reset all the confidence levels
+        ArrayList<DetectedActivity> tempList = new ArrayList<>();
+        for (int i = 0; i < Constants.MONITORED_ACTIVITIES.length; i++) {
+            // If a new activity was detected, its confidence level is used, otherwise, the confidence level used is zero.
+            int confidence = 0;
+            if (detectedActivitiesMap.containsKey(Constants.MONITORED_ACTIVITIES[i])) {
+                confidence = detectedActivitiesMap.get(Constants.MONITORED_ACTIVITIES[i]);
+            }
+            tempList.add(new DetectedActivity(Constants.MONITORED_ACTIVITIES[i], confidence));
+        }
+
+        // Adding list of activities and its confidence
+        this.type.setText("");
+        String typeList = "";
+
+        //Data saved in the Database until this moment (Old position)
+        DeviceInfo deviceInfo = db.getTableData();
+
+        //New data, with position updated, if status is different from the one saved already then updates de database, otherwise keeps the old data
+        DeviceInfo deviceInfoUpdated = new DeviceInfo();
+        deviceInfoUpdated.setLatitude(myCurrentLocation.getLatitude());
+        deviceInfoUpdated.setLongitude(myCurrentLocation.getLongitude());
+        deviceInfoUpdated.setStatus(-1); // Set -1 to say the database is not gonna be changed
+
+        // REMOVE--------------------------
+        Log.i(TAG, "Speed (Kmh): " + Constants.speedInKmh(myCurrentLocation.getSpeed()));
+
+        //Foreach activity detected
+        for (DetectedActivity detectedActivity: tempList) {
+            //Set text on screen
+            typeList = (String) this.type.getText();
+            this.type.setText(typeList + Constants.getActivityString(this, detectedActivity.getType())
+                    + " - " + detectedActivity.getConfidence() + "\n");
+
+            //If is Parked
+            if (deviceInfo.getStatus() == Constants.PARKED) {
+                if (detectedActivity.getType() == DetectedActivity.IN_VEHICLE && detectedActivity.getConfidence() >= 70
+                    && Constants.speedInKmh(myCurrentLocation.getSpeed()) >= 15) {
+                    //Then it checks the confidence and speed, if it matches saves in the database
+                    //If so, saves in the database as not parked anymore, person is now driving
+                    //Vehicle speed avg >= 15kmh
+                    Log.i(TAG, "In Vehicle | Confidence >= 70% | Speed >= 15kmh");
+                    deviceInfoUpdated.setStatus(Constants.NOT_PARKED);
+                }
+            } else {
+                if ((detectedActivity.getType() == DetectedActivity.ON_FOOT || detectedActivity.getType() == DetectedActivity.TILTING)
+                        && detectedActivity.getConfidence() >= 70 && Constants.speedInKmh(myCurrentLocation.getSpeed()) <= 10) {
+                    //Then it checks if the new activity detected is ON FOOT or TILTING, confidence >= 50 and speed <= 10
+                    //And saves it as new current activity, which will say the vehicle is PARKED with the current position
+                    //Person speed avg: <= 10kmh
+                    Log.i(TAG, "On Foot or Tilting | Confidence >= 50% | Speed <= 10kmh");
+                    deviceInfoUpdated.setStatus(Constants.PARKED);
+                } else if (detectedActivity.getType() == DetectedActivity.STILL && detectedActivity.getConfidence() >= 70
+                        && myCurrentLocation.getSpeed() <= 2) { // speed less than 2m/s
+                    //If the new activity is STILL and confidence >= 70, then the device is resting somewhere and speed is less than 2m/s
+                    //the app is gonna save this state as PARKED with the current position
+                    Log.i(TAG, "Still | Confidence >= 70% | Speed is around 2m/s");
+                    deviceInfoUpdated.setStatus(Constants.PARKED);
+                }
+            }
+        }
+
+        //Update Database only if the status is different from the one already saved and is one the cases above
+        if (deviceInfoUpdated.getStatus() >= 0 && deviceInfoUpdated.getStatus() != deviceInfo.getStatus()) {
+            db.updateTableData(deviceInfoUpdated);
+            LatLng latlng = new LatLng(deviceInfoUpdated.getLatitude(), deviceInfoUpdated.getLongitude());
+            Toast.makeText(this, Constants.getActivityStringToast(this, deviceInfoUpdated.getStatus()), Toast.LENGTH_LONG).show();
+
+
+            //Bordas para apenas considerar pontos dentro da unisc
+            //if (uniscBounds.contains(latlng)) {
+                //Log.i(TAG, "Ponto está na UNISC");
+                if (deviceInfoUpdated.getStatus() == DetectedActivity.IN_VEHICLE) {
+                    removeMarkerMap(this.marker);
+                    //Send to server info that IS_NOT_PARKED, and remove from server database
+                }
+                else {
+                    addMarkerMap(latlng);
+                    //Send to server info that IS_PARKED, with position saved into the database
+                }
+            //}
+            //else {
+            //    Log.i(TAG, "Ponto está fora da UNISC");
+            //}
+        }
+
+        //Only tests: sending serve anytime, independently of having same status
+        try {
+            String jsonDevice = Utils.makeJsonDevice(deviceInfoUpdated, Constants.UPDATE, this);
+            new CallServerHandler().execute(jsonDevice);
+        }
+            catch (Exception e) {
+            Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
+        }
+
+        /*
+        //REAL SCENARIO
+
+        //Update Database only if the status is different from the one already saved and is one the cases above
+        if (deviceInfoUpdated.getStatus() >= 0 && deviceInfoUpdated.getStatus() != deviceInfo.getStatus()) {
+            db.updateTableData(deviceInfoUpdated);
+            LatLng latlng = new LatLng(deviceInfoUpdated.getLatitude(), deviceInfoUpdated.getLongitude());
+            Toast.makeText(this, Constants.getActivityStringToast(this, deviceInfoUpdated.getStatus()), Toast.LENGTH_LONG).show();
+
+            //It only parks if the location is inside UNISC bounds
+            if (uniscBounds.contains(latlng)) {
+                if (deviceInfoUpdated.getStatus() != DetectedActivity.IN_VEHICLE) {
+                    //Send to server info that IS_PARKED, with position saved into the database
+                    Log.i(TAG, "Inside UNISC bounds");
+                    addMarkerMap(latlng);
+                }
+            }
+
+            //To remove the marker and set as NOT_PARKED it can be from anywhere
+            //If is leaving the parking lot, then it updates the old position with the flag NOT_PARKED
+            if (deviceInfoUpdated.getStatus() == DetectedActivity.IN_VEHICLE) {
+                removeMarkerMap(this.marker);
+            }
+
+            try {
+                //Send to server info of the new device info
+                String jsonDevice = Utils.makeJsonDevice(deviceInfoUpdated, Constants.UPDATE, this);
+                new CallServerHandler().execute(jsonDevice);
+            }
+            catch (Exception e) {
+                Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
+            }
+        }
+        */
+    }
+
+    /**************************
+     * Class to make asynchronous call to the server to save or get the data
+     **************************/
+    private class CallServerHandler extends AsyncTask<String, Void, String> {
+
+        ServerHandler serverHandler = new ServerHandler();
+        protected String doInBackground(String... deviceDataString) {
+            try {
+                return serverHandler.sendPostData(deviceDataString[0]);
+            }
+            catch (Exception e) {
+                Log.e(TAG, getString(R.string.no_connection));
+                e.printStackTrace();
+            }
+
+            return null;
+        }
+
+        protected void onPostExecute(String jsonEstacionamentosData) {
+            try {
+                showStatusEstacionamentos(jsonEstacionamentosData);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    private void showStatusEstacionamentos(String jsonEstacionamentosData) throws JSONException {
+        try {
+            mMap.clear();
+            Log.e(TAG, jsonEstacionamentosData);
+            JSONArray array = new JSONArray(jsonEstacionamentosData);
+            ArrayList<WeightedLatLng> latLngServerDataWeighted = new ArrayList<>();
+            Collection<ClusterItemMap> latLngServerDataCluster = new ArrayList<>();
+
+            for (int i = 0; i < array.length(); i++) {
+                JSONObject row = array.getJSONObject(i);
+                LatLng latlng = new LatLng(row.getDouble("latitude"), row.getDouble("longitude"));
+                WeightedLatLng weightedLatLng = new WeightedLatLng(latlng, 1000);
+                latLngServerDataWeighted.add(weightedLatLng);
+                latLngServerDataCluster.add(new ClusterItemMap(latlng));
+                /*if (viewMarkers) {
+                    //Remover Markers
+                    setUpMarkers(latlng);
+                }*/
+            }
+            //if (viewClusters) {
+                //Remover clusters
+            setUpClusters(latLngServerDataCluster);
+            //}
+            /*if (viewHeatmaps){
+                setUpHeatMap(latLngServerDataWeighted);
+            }*/
+        }
+        catch (Exception e) {
+            Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    /********************
+     * MARKERS
+     ********************/
+    public void setUpMarkers(LatLng latlng) {
+        mMap.addMarker(new MarkerOptions().position(latlng));
+    }
+
+    /********************
+     * HEAT MAPS
+     ********************/
+    public void setUpHeatMap(ArrayList<WeightedLatLng> latLngArray)
+    {
+        mMap.clear();
+        addMarkerMap(marker.getPosition());
+        // Create gradient, Green & Red
+        int[] colors = { Color.rgb(102, 225, 0), Color.rgb(255, 0, 0) };
+        float[] startPoints = { 0.2f, 0.4f };
+
+        if (this.mOverlay!=null) { this.mOverlay.remove(); }
+
+        HeatmapTileProvider mProvider = new HeatmapTileProvider.Builder().weightedData(latLngArray).build();
+        mProvider.setGradient(new Gradient(colors, startPoints));
+        mProvider.setRadius(20);
+        mProvider.setOpacity(1);
+
+        this.mOverlay = mMap.addTileOverlay(new TileOverlayOptions().tileProvider(mProvider));
+    }
+
+
+    /********************
+     * CLUSTERING POINTS
+     ********************/
+    public class ClusterItemMap implements ClusterItem
+    {
+        private final LatLng mPosition;
+
+        public ClusterItemMap(LatLng latLng) {
+            mPosition = latLng;
+        }
+
+        @Override
+        public LatLng getPosition() {
+            return mPosition;
+        }
+    }
+
+    private void setUpClusters(Collection<ClusterItemMap> latLngClusterData)
+    {
+        if (mClusterManager != null) {
+            mClusterManager.clearItems();
+            Toast.makeText(this, "Atualizando mapa...", Toast.LENGTH_SHORT).show();
+            mMap.animateCamera(CameraUpdateFactory.zoomTo(18));
+        }
+
+        mClusterManager = new ClusterManager<ClusterItemMap>(this, mMap);
+
+        // Adding cluster markers to the cluster manager for each point.
+        mClusterManager.addItems(latLngClusterData);
+
+        mMap.setOnCameraIdleListener(mClusterManager);
+        mMap.setOnMarkerClickListener(mClusterManager);
+    }
+
+
+    /************************
+     * ATTENTION: This was auto-generated
+     * **********************
      * Retrieves a SharedPreference object used to store or read values in this app. If a
      * preferences file passed as the first argument to {@link #getSharedPreferences}
      * does not exist, it is created when {@link SharedPreferences.Editor} is used to commit
@@ -294,8 +685,7 @@ public class MainActivity extends FragmentActivity
      * updates.
      */
     private boolean getUpdatesRequestedState() {
-        return getSharedPreferencesInstance()
-                .getBoolean(Constants.ACTIVITY_UPDATES_REQUESTED_KEY, false);
+        return getSharedPreferencesInstance().getBoolean(Constants.ACTIVITY_UPDATES_REQUESTED_KEY, false);
     }
 
     /**
@@ -308,73 +698,12 @@ public class MainActivity extends FragmentActivity
                 .commit();
     }
 
-    /**
+     /**
      * Stores the list of detected activities in the Bundle.
      */
     public void onSaveInstanceState(Bundle savedInstanceState) {
-        Log.e(TAG, "****************Debug - Save instances activities detected****************");
+        Log.i(TAG, "****************Debug - Save instances activities detected****************");
         savedInstanceState.putSerializable(Constants.DETECTED_ACTIVITIES, mDetectedActivities);
         super.onSaveInstanceState(savedInstanceState);
-    }
-
-    /**
-     * Gets a PendingIntent to be sent for each activity detection.
-     */
-    private PendingIntent getActivityDetectionPendingIntent() {
-        Intent intent = new Intent(this, DetectActivityIntent.class);
-        this.startService(intent);
-
-        // FLAG_UPDATE_CURRENT is used so that the same pending intent can be used again when calling
-        // requestActivityUpdates() and removeActivityUpdates().
-        return PendingIntent.getService(this, 0, intent, PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    /*
-     * Updates the list of activities with the new confidence level
-     */
-    protected void updateDetectedActivities(ArrayList<DetectedActivity> detectedActivities) {
-        HashMap<Integer, Integer> detectedActivitiesMap = new HashMap<>();
-        for (DetectedActivity activity : detectedActivities) {
-            detectedActivitiesMap.put(activity.getType(), activity.getConfidence());
-        }
-
-        // Every time the app detect new activities, it reset all the confidence levels
-        ArrayList<DetectedActivity> tempList = new ArrayList<DetectedActivity>();
-        for (int i = 0; i < Constants.MONITORED_ACTIVITIES.length; i++) {
-            // If a new activity was detected, its confidence level is used.
-            // Otherwise, the confidence level used is zero.
-            int confidence = 0;
-            if (detectedActivitiesMap.containsKey(Constants.MONITORED_ACTIVITIES[i])) {
-                confidence = detectedActivitiesMap.get(Constants.MONITORED_ACTIVITIES[i]);
-            }
-            tempList.add(new DetectedActivity(Constants.MONITORED_ACTIVITIES[i], confidence));
-        }
-
-        // Clear Text.
-        this.type.setText("");
-
-        // Adding list of activities and its confidence
-        String typeList = "";
-        for (DetectedActivity detectedActivity: tempList) {
-            typeList = (String) this.type.getText();
-            this.type.setText(typeList + "\n"
-                    + Constants.getActivityString(this, detectedActivity.getType()) + " - "
-                    + detectedActivity.getConfidence());
-
-        }
-    }
-
-    /**
-     * Receiver for intents sent by DetectedActivitiesIntentService via a sendBroadcast().
-     * Receives a list of one or more DetectedActivity objects associated with the current state of
-     * the device.
-     */
-    public class ActivityDetectionBroadcastReceiver extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            ArrayList<DetectedActivity> updatedActivities =
-                    intent.getParcelableArrayListExtra(Constants.ACTIVITY_EXTRA);
-            updateDetectedActivities(updatedActivities);
-        }
     }
 }

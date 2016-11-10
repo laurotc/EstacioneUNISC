@@ -1,130 +1,115 @@
-<!--
-<fragment xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:map="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/map"
-    android:name="com.google.android.gms.maps.SupportMapFragment"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    tools:context="com.laurotc.estacionamentos_tcc2.MainActivity" />
--->
-
-
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:orientation="vertical"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <android.support.v7.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="?attr/colorPrimary"
+        android:titleTextColor="#FFF"
+        android:elevation="4dp"
+        android:theme="@style/ThemeOverlay.AppCompat.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"/>
+
     <!--Latitude-->
-    <TextView android:id="@+id/latitudeLabel"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:hint="Latitude:"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentLeft="true"
-        android:layout_alignParentStart="true"
-        android:layout_marginLeft="5dp"
-        android:layout_marginTop="13dp"
-        android:layout_marginRight="0dp"
-        android:layout_marginBottom="0dp" />
-
-    <EditText android:id="@+id/latitudeText"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <TextView android:id="@+id/latitudeText"
+        android:layout_width="130dp"
+        android:layout_height="30dp"
         android:hint="Latitude"
-        android:layout_alignParentTop="true"
-        android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true"
-        android:layout_toEndOf="@+id/longitudeLabel"
-        android:layout_toRightOf="@+id/longitudeLabel" />
+        android:layout_marginTop="8dp"
+        android:layout_alignBottom="@+id/longitudeText"
+        android:layout_below="@+id/toolbar"/>
 
-
-    <!--Longitude-->
-    <TextView android:id="@+id/longitudeLabel"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:hint="Longitude:"
-        android:layout_below="@+id/latitudeText"
-        android:layout_alignLeft="@+id/latitudeLabel"
-        android:layout_alignStart="@+id/latitudeLabel"
-        android:layout_marginTop="13dp" />
-    <EditText android:id="@+id/longitudeText"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <!--Latitude-->
+    <TextView android:id="@+id/longitudeText"
+        android:layout_width="120dp"
+        android:layout_height="25dp"
         android:hint="Longitude"
-        android:layout_below="@+id/latitudeText"
-        android:layout_alignRight="@+id/latitudeText"
-        android:layout_alignEnd="@+id/latitudeText"
-        android:layout_toRightOf="@+id/longitudeLabel"
-        android:layout_toEndOf="@+id/longitudeLabel" />
-
+        android:layout_marginTop="8dp"
+        android:layout_toRightOf="@+id/latitudeText"
+        android:layout_below="@+id/toolbar"/>
 
     <!--Speed-->
-    <TextView android:id="@+id/speedLabel"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:hint="Speed:"
-        android:layout_below="@+id/longitudeText"
-        android:layout_alignLeft="@+id/longitudeLabel"
-        android:layout_alignStart="@+id/longitudeLabel"
-        android:layout_marginTop="13dp" />
-    <EditText android:id="@+id/speedText"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <TextView android:id="@+id/speedText"
+        android:layout_width="100dp"
+        android:layout_height="30dp"
+        android:layout_marginTop="8dp"
         android:hint="Speed"
-        android:layout_below="@+id/longitudeText"
+        android:gravity="right"
         android:layout_alignParentRight="true"
         android:layout_alignParentEnd="true"
-        android:layout_alignLeft="@+id/longitudeText"
-        android:layout_alignStart="@+id/longitudeText" />
+        android:layout_alignBottom="@+id/longitudeText"
+        android:layout_below="@+id/toolbar"/>
 
-
-    <!--Acceleration
-    <TextView android:id="@+id/accelerationLabel"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:hint="Acceleration:"
-        android:layout_alignTop="@+id/accelerationText"
-        android:layout_alignLeft="@+id/speedLabel"
-        android:layout_alignStart="@+id/speedLabel"
-        android:layout_marginTop="13dp" />
-    <EditText android:id="@+id/accelerationText"
-        android:layout_weight="1"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:hint="Acceleration"
-        android:layout_below="@+id/speedText"
-        android:layout_alignRight="@+id/speedText"
-        android:layout_alignEnd="@+id/speedText"
-        android:layout_toRightOf="@+id/accelerationLabel"
-        android:layout_toEndOf="@+id/accelerationLabel" />
-    -->
+    <!--Activity detection-->
     <TextView android:id="@+id/type"
         android:layout_weight="1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:hint="How is the person moving?"
-        android:lines="10"
-        android:layout_marginTop="25dp"
+        android:hint="Detecting ..."
+        android:lines="4"
         android:layout_below="@+id/speedText"
-        android:layout_alignLeft="@+id/speedLabel"
-        android:layout_alignStart="@+id/speedLabel" />
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
 
-<!--
-    <Button
+    <!--Update Map Data-->
+    <Button android:id="@+id/update"
+        android:layout_weight="1"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Atualizar Mapa"
+        android:layout_below="@+id/type"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true" />
+
+    <!--Map-->
+    <fragment xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:map="http://schemas.android.com/apk/res-auto"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@+id/map"
+        android:name="com.google.android.gms.maps.SupportMapFragment"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context="com.laurotc.estacionamentos_tcc2.MainActivity"
+        android:layout_below="@+id/update" />
+
+    <!--<Button android:id="@+id/marker"
+        android:layout_weight="1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="SEND"
-        android:id="@+id/button"
-        android:layout_alignParentBottom="true"
+        android:text="Marcadores"
+        android:layout_below="@+id/type"
+        android:layout_toRightOf="@+id/heatmap"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentStart="true"
+        android:layout_toStartOf="@+id/longitudeText"
+        android:layout_toLeftOf="@+id/longitudeText" />
+
+    <Button android:id="@+id/heatmap"
+        android:layout_weight="1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mapa Calor"
+        android:layout_alignBaseline="@+id/marker"
+        android:layout_alignBottom="@+id/marker"
+        android:layout_toRightOf="@+id/latitudeText"
+        android:layout_toEndOf="@+id/latitudeText" />
+
+    <Button android:id="@+id/cluster"
+        android:layout_weight="1"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Agrupar"
+        android:layout_below="@+id/type"
         android:layout_alignParentRight="true"
-        android:layout_alignParentEnd="true" />
--->
+        android:layout_alignParentEnd="true"
+        android:layout_toEndOf="@+id/heatmap"
+        android:layout_toRightOf="@+id/heatmap" />-->
+
 </RelativeLayout>

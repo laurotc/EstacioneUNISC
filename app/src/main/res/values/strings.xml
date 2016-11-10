@@ -1,6 +1,6 @@
 <resources>
-    <string name="app_name">ParkAround</string>
-    <string name="title_activity_maps">ParkAround</string>
+    <string name="app_name">Estacione UNISC</string>
+    <string name="title_activity_maps">Estacione UNISC</string>
 
     <!-- Activity detection strings -->
     <string name="in_vehicle">In a vehicle</string>
@@ -13,7 +13,12 @@
     <string name="walking">Walking</string>
     <string name="unidentifiable_activity">Unidentifiable activity: %1$d</string>
 
+    <string name="in_vehicle_toast">Não Estacionado (Em um veículo)</string>
+    <string name="still_toast">Estacionado (Parado)</string>
+    <string name="walking_tilting_toast">Estacionado (Andando ou Balançando)</string>
+
     <string name="detected_activities_title">Detected Activities</string>
+    <string name="no_connection">Não foi possível conectar ao servidor.</string>
 
     <string name="request_activity_updates">Request updates</string>
     <string name="remove_activity_updates">Remove updates</string>

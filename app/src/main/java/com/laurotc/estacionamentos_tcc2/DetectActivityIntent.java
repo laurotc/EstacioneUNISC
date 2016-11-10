@@ -31,23 +31,20 @@ public class DetectActivityIntent extends IntentService {
      * @param intent Intent (inside PendingIntent) sent when requestActivityUpdates() is called.
      */
     @Override
-    protected void onHandleIntent(Intent intent) {
+    public void onHandleIntent(Intent intent) {
         if (ActivityRecognitionResult.hasResult(intent)) {
             ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
-            Intent localIntent = new Intent(Constants.BROADCAST_ACTION);
 
             // Get the list of the probable activities with its confidence level
             ArrayList<DetectedActivity> detectedActivities = (ArrayList) result.getProbableActivities();
 
             // Log each activity
             for (DetectedActivity da : detectedActivities) {
-                Log.i(TAG, "Activity detected: "
-                        + Constants.getActivityString(getApplicationContext(), da.getType()) + " "
-                        + da.getConfidence() + "%"
-                );
+                Log.i(TAG, "Activity detected: " + Constants.getActivityString(getApplicationContext(), da.getType()) + " " + da.getConfidence() + "%");
             }
 
             // Broadcast the list of detected activities
+            Intent localIntent = new Intent(Constants.BROADCAST_ACTION);
             localIntent.putExtra(Constants.ACTIVITY_EXTRA, detectedActivities);
             LocalBroadcastManager.getInstance(this).sendBroadcast(localIntent);
         }

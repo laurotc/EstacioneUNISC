@@ -8,13 +8,18 @@ import android.content.Context;
 import android.content.res.Resources;
 import com.google.android.gms.location.DetectedActivity;
 
+import java.text.DecimalFormat;
+
 /**
  * Constants used.
  */
 public final class Constants {
 
-    private Constants() {
-    }
+    private Constants() {}
+
+    /**************
+     * Constant Values
+     **************/
 
     public static final String PACKAGE_NAME = "com.laurotc.estacionamentos_tcc2";
     public static final String BROADCAST_ACTION = PACKAGE_NAME + ".BROADCAST_ACTION";
@@ -23,50 +28,108 @@ public final class Constants {
     public static final String ACTIVITY_UPDATES_REQUESTED_KEY = PACKAGE_NAME + ".ACTIVITY_UPDATES_REQUESTED";
     public static final String DETECTED_ACTIVITIES = PACKAGE_NAME + ".DETECTED_ACTIVITIES";
 
-    /**
-     * The desired time between activity detections. Set 0 for detect with the fastest possible rate
-     */
+    //Desired time between activity detections. 0 to detect in the fastest possible rate
     public static final long DETECTION_INTERVAL_IN_MILLISECONDS = 0;
 
-    /**
-     * List of activities
-     */
+    //List of activities
     protected static final int[] MONITORED_ACTIVITIES = {
-            DetectedActivity.STILL,
-            DetectedActivity.ON_FOOT,
-            DetectedActivity.WALKING,
-            DetectedActivity.RUNNING,
-            DetectedActivity.ON_BICYCLE,
             DetectedActivity.IN_VEHICLE,
-            DetectedActivity.TILTING,
-            DetectedActivity.UNKNOWN
+            DetectedActivity.ON_BICYCLE,
+            DetectedActivity.ON_FOOT,
+            DetectedActivity.STILL,
+            DetectedActivity.UNKNOWN,
+            DetectedActivity.TILTING
     };
+
+    //Status
+    public static final int PARKED = 1;
+    public static final int NOT_PARKED = 0;
+
+    //Server addr
+    public static final String SERVER_ALIAS = "location";
+    public static final String SERVER_ALIAS_TEST = "location_test";
+    public static final String SERVER_ADDR_SEND_DATA_LOCAL = "http://192.168.1.110/parkaround/?q="+Constants.SERVER_ALIAS;
+
+    //Points to set the area to be considered
+    public static final double NE_BOUND_LAT = -29.695981;
+    public static final double NE_BOUND_LONG = -52.433506;
+
+    public static final double SW_BOUND_LAT = -29.699606;
+    public static final double SW_BOUND_LONG = -52.441435;
+
+    public static final int UPDATE = 1;
+    public static final int READ = 0;
+
+    /****************
+     * Util Methods
+     ****************/
 
     /**
      * Returns a String of the detected activity type.
      */
-    public static String getActivityString(Context context, int detectedActivityType) {
+    public static String getActivityString(Context context, int detectedActivityType)
+    {
         Resources resources = context.getResources();
         switch(detectedActivityType) {
             case DetectedActivity.IN_VEHICLE:
                 return resources.getString(R.string.in_vehicle);
-            case DetectedActivity.ON_BICYCLE:
-                return resources.getString(R.string.on_bicycle);
             case DetectedActivity.ON_FOOT:
-                return resources.getString(R.string.on_foot);
             case DetectedActivity.RUNNING:
-                return resources.getString(R.string.running);
+            case DetectedActivity.WALKING:
+                return resources.getString(R.string.on_foot);
             case DetectedActivity.STILL:
                 return resources.getString(R.string.still);
             case DetectedActivity.TILTING:
-                return resources.getString(R.string.tilting);
             case DetectedActivity.UNKNOWN:
-                return resources.getString(R.string.unknown);
-            case DetectedActivity.WALKING:
-                return resources.getString(R.string.walking);
+            case DetectedActivity.ON_BICYCLE:
+                return resources.getString(R.string.tilting);
             default:
                 return resources.getString(R.string.unidentifiable_activity, detectedActivityType);
         }
     }
+
+    /**
+     * Returns a String with the status to show on the Toast
+     */
+    public static String getActivityStringToast(Context context, int detectedActivityType)
+    {
+
+        Resources resources = context.getResources();
+        switch(detectedActivityType) {
+            case DetectedActivity.IN_VEHICLE:
+                return resources.getString(R.string.in_vehicle_toast);
+            case DetectedActivity.ON_BICYCLE:
+            case DetectedActivity.ON_FOOT:
+            case DetectedActivity.RUNNING:
+            case DetectedActivity.WALKING:
+            case DetectedActivity.TILTING:
+                return resources.getString(R.string.walking_tilting_toast);
+            case DetectedActivity.STILL:
+                return resources.getString(R.string.still_toast);
+            case DetectedActivity.UNKNOWN:
+                return resources.getString(R.string.unknown);
+            default:
+                return resources.getString(R.string.unidentifiable_activity, detectedActivityType);
+        }
+    }
+
+    /**
+     * Get string of device status
+     */
+    public static String getStatusString(int status)
+    {
+        return status == PARKED ? "PARKED" : "NOT PARKED";
+    }
+
+    /**
+     * Converts speed in m/s to kmh
+     */
+    public static double speedInKmh(double speed)
+    {
+        double speedKmh = speed*3.6;
+        DecimalFormat df = new DecimalFormat("#.##");
+        return Double.valueOf(df.format(speedKmh));
+    }
+
 }
 
