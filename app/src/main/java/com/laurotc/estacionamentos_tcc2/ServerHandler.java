@@ -50,7 +50,7 @@ public class ServerHandler extends Activity {
      */
     protected String sendPostData(String deviceDataString) throws Exception {
         try {
-            URL url = new URL(Constants.SERVER_ADDR_SEND_DATA_LOCAL);
+            URL url = new URL(Constants.SERVER_ADDR_SEND_DATA_TEST);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setDoInput(true);
             connection.setDoOutput(true);

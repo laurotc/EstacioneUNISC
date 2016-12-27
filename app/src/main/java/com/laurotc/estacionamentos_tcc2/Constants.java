@@ -48,9 +48,13 @@ public final class Constants {
     //Server addr
     public static final String SERVER_ALIAS = "location";
     public static final String SERVER_ALIAS_TEST = "location_test";
-    public static final String SERVER_ADDR_SEND_DATA_LOCAL = "http://192.168.1.110/parkaround/?q="+Constants.SERVER_ALIAS;
+    public static final String SERVER_ADDR_SEND_DATA = "http://ec.unisc.br/tcc2/?q="+Constants.SERVER_ALIAS;
+    public static final String SERVER_ADDR_SEND_DATA_TEST = "http://ec.unisc.br/tcc2/?q="+Constants.SERVER_ALIAS_TEST;
 
     //Points to set the area to be considered
+    public static final double UNISC_CENTER_LAT = -29.697982;
+    public static final double UNISC_CENTER_LONG = -52.436860;
+
     public static final double NE_BOUND_LAT = -29.695981;
     public static final double NE_BOUND_LONG = -52.433506;
 

@@ -1,6 +1,8 @@
 package com.laurotc.estacionamentos_tcc2;
 
+import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.app.PendingIntent;
@@ -13,6 +15,7 @@ import android.content.Context;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.support.v4.app.FragmentActivity;
 import android.location.Location;
@@ -78,8 +81,7 @@ public class MainActivity extends AppCompatActivity
         GoogleApiClient.ConnectionCallbacks,
         GoogleApiClient.OnConnectionFailedListener,
         LocationListener,
-        ResultCallback<Status>
-{
+        ResultCallback<Status> {
 
     protected static final String TAG = "MainActivity";
     private GoogleApiClient mGoogleApiClient;
@@ -121,11 +123,7 @@ public class MainActivity extends AppCompatActivity
         longitudeText = (TextView) findViewById(R.id.longitudeText);
         latitudeText = (TextView) findViewById(R.id.latitudeText);
         speedText = (TextView) findViewById(R.id.speedText);
-        type = (TextView) findViewById(R.id.type);
         updateMapButton = (Button) findViewById(R.id.update);
-        /*clusterMapButton = (Button) findViewById(R.id.cluster);
-        markerMapButton = (Button) findViewById(R.id.marker);
-        heatmapMapButton = (Button) findViewById(R.id.heatmap);*/
 
 
         mBroadcastReceiver = new ActivityDetectionBroadcastReceiver();
@@ -223,9 +221,13 @@ public class MainActivity extends AppCompatActivity
     @Override
     public void onMapReady(GoogleMap googleMap) {
         try {
+            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                    && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                return;
+            }
             mMap = googleMap;
-            //mMap.setMaxZoomPreference(17);
-            //mMap.setMinZoomPreference(15);
+            mMap.setMaxZoomPreference(19);
+            mMap.setMinZoomPreference(15);
             mMap.setMyLocationEnabled(true);
             mMap.getUiSettings().setZoomControlsEnabled(true);
 
@@ -238,7 +240,6 @@ public class MainActivity extends AppCompatActivity
                 Log.i(TAG, "new data -> Lat: " + deviceInfo.getLatitude() + " | Long: "
                         + deviceInfo.getLongitude() + " | Parked: " + deviceInfo.getStatus());
 
-                this.type.setText("Last status saved: " + Constants.getStatusString(deviceInfo.getStatus()));
                 LatLng latlng = new LatLng(deviceInfo.getLatitude(), deviceInfo.getLongitude());
                 addMarkerMap(latlng);
 
@@ -249,40 +250,12 @@ public class MainActivity extends AppCompatActivity
             updateMapButton.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     updateMapData(db.getTableData());
+                    mMap.animateCamera(CameraUpdateFactory.zoomTo(18));
                 }
             });
-
-            /*clusterMapButton.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    viewClusters = true;
-                    viewHeatmaps = false;
-                    viewMarkers = false;
-                    updateMapData(db.getTableData());
-                }
-            });
-
-            heatmapMapButton.setOnClickListener(new View.OnClickListener() {
-                public void onClick(View v) {
-                    viewHeatmaps = true;
-                    viewClusters = false;
-                    viewMarkers = false;
-                    updateMapData(db.getTableData());
-                }
-            });
-
-            markerMapButton.setOnClickListener(new View.OnClickListener() {
-
-                public void onClick(View v) {
-                    viewMarkers = true;
-                    viewHeatmaps = false;
-                    viewClusters = false;
-                    updateMapData(db.getTableData());
-                    addMarkerMap(marker.getPosition());
-                }
-            });*/
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             Log.e(TAG, e.getMessage());
+            //sendEmailException(e.getMessage());
         }
     }
 
@@ -308,6 +281,10 @@ public class MainActivity extends AppCompatActivity
     }
 
     protected void startLocationUpdates() {
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, android.Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
         LocationServices.FusedLocationApi.requestLocationUpdates(mGoogleApiClient, mLocationRequest, this);
     }
 
@@ -370,6 +347,7 @@ public class MainActivity extends AppCompatActivity
                 updateDetectedActivities(updatedActivities);
             } catch (Exception e) {
                 Log.e(TAG, "Error detecting or sending data do server: " + e.getMessage());
+                //sendEmailException("Error detecting or sending data do server: " + e.getMessage());
             }
         }
     }
@@ -389,7 +367,6 @@ public class MainActivity extends AppCompatActivity
 
     private void updateMapData(DeviceInfo deviceInfo) {
         try {
-
             String jsonDevice = Utils.makeJsonDevice(deviceInfo, Constants.READ, this);
             new CallServerHandler().execute(jsonDevice);
         }
@@ -424,10 +401,6 @@ public class MainActivity extends AppCompatActivity
             tempList.add(new DetectedActivity(Constants.MONITORED_ACTIVITIES[i], confidence));
         }
 
-        // Adding list of activities and its confidence
-        this.type.setText("");
-        String typeList = "";
-
         //Data saved in the Database until this moment (Old position)
         DeviceInfo deviceInfo = db.getTableData();
 
@@ -437,79 +410,37 @@ public class MainActivity extends AppCompatActivity
         deviceInfoUpdated.setLongitude(myCurrentLocation.getLongitude());
         deviceInfoUpdated.setStatus(-1); // Set -1 to say the database is not gonna be changed
 
-        // REMOVE--------------------------
-        Log.i(TAG, "Speed (Kmh): " + Constants.speedInKmh(myCurrentLocation.getSpeed()));
-
         //Foreach activity detected
         for (DetectedActivity detectedActivity: tempList) {
-            //Set text on screen
-            typeList = (String) this.type.getText();
-            this.type.setText(typeList + Constants.getActivityString(this, detectedActivity.getType())
-                    + " - " + detectedActivity.getConfidence() + "\n");
-
             //If is Parked
             if (deviceInfo.getStatus() == Constants.PARKED) {
+                //Log.i(TAG, "Parked");
                 if (detectedActivity.getType() == DetectedActivity.IN_VEHICLE && detectedActivity.getConfidence() >= 70
                     && Constants.speedInKmh(myCurrentLocation.getSpeed()) >= 15) {
                     //Then it checks the confidence and speed, if it matches saves in the database
                     //If so, saves in the database as not parked anymore, person is now driving
                     //Vehicle speed avg >= 15kmh
-                    Log.i(TAG, "In Vehicle | Confidence >= 70% | Speed >= 15kmh");
+                    //Log.d(TAG, "In Vehicle | Confidence >= 70% | Speed >= 15kmh");
                     deviceInfoUpdated.setStatus(Constants.NOT_PARKED);
                 }
             } else {
+                //Log.i(TAG, "Not Parked");
                 if ((detectedActivity.getType() == DetectedActivity.ON_FOOT || detectedActivity.getType() == DetectedActivity.TILTING)
                         && detectedActivity.getConfidence() >= 70 && Constants.speedInKmh(myCurrentLocation.getSpeed()) <= 10) {
-                    //Then it checks if the new activity detected is ON FOOT or TILTING, confidence >= 50 and speed <= 10
+                    //Then it checks if the new activity detected is ON FOOT or TILTING, confidence >= 70 and speed <= 10
                     //And saves it as new current activity, which will say the vehicle is PARKED with the current position
                     //Person speed avg: <= 10kmh
-                    Log.i(TAG, "On Foot or Tilting | Confidence >= 50% | Speed <= 10kmh");
+                    //Log.d(TAG, "On Foot or Tilting | Confidence >= 50% | Speed <= 10kmh");
                     deviceInfoUpdated.setStatus(Constants.PARKED);
                 } else if (detectedActivity.getType() == DetectedActivity.STILL && detectedActivity.getConfidence() >= 70
                         && myCurrentLocation.getSpeed() <= 2) { // speed less than 2m/s
                     //If the new activity is STILL and confidence >= 70, then the device is resting somewhere and speed is less than 2m/s
                     //the app is gonna save this state as PARKED with the current position
-                    Log.i(TAG, "Still | Confidence >= 70% | Speed is around 2m/s");
+                    //Log.d(TAG, "Still | Confidence >= 70% | Speed is around 2m/s");
                     deviceInfoUpdated.setStatus(Constants.PARKED);
                 }
             }
         }
-
-        //Update Database only if the status is different from the one already saved and is one the cases above
-        if (deviceInfoUpdated.getStatus() >= 0 && deviceInfoUpdated.getStatus() != deviceInfo.getStatus()) {
-            db.updateTableData(deviceInfoUpdated);
-            LatLng latlng = new LatLng(deviceInfoUpdated.getLatitude(), deviceInfoUpdated.getLongitude());
-            Toast.makeText(this, Constants.getActivityStringToast(this, deviceInfoUpdated.getStatus()), Toast.LENGTH_LONG).show();
-
-
-            //Bordas para apenas considerar pontos dentro da unisc
-            //if (uniscBounds.contains(latlng)) {
-                //Log.i(TAG, "Ponto está na UNISC");
-                if (deviceInfoUpdated.getStatus() == DetectedActivity.IN_VEHICLE) {
-                    removeMarkerMap(this.marker);
-                    //Send to server info that IS_NOT_PARKED, and remove from server database
-                }
-                else {
-                    addMarkerMap(latlng);
-                    //Send to server info that IS_PARKED, with position saved into the database
-                }
-            //}
-            //else {
-            //    Log.i(TAG, "Ponto está fora da UNISC");
-            //}
-        }
-
-        //Only tests: sending serve anytime, independently of having same status
-        try {
-            String jsonDevice = Utils.makeJsonDevice(deviceInfoUpdated, Constants.UPDATE, this);
-            new CallServerHandler().execute(jsonDevice);
-        }
-            catch (Exception e) {
-            Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
-        }
-
-        /*
-        //REAL SCENARIO
 
         //Update Database only if the status is different from the one already saved and is one the cases above
         if (deviceInfoUpdated.getStatus() >= 0 && deviceInfoUpdated.getStatus() != deviceInfo.getStatus()) {
@@ -518,17 +449,16 @@ public class MainActivity extends AppCompatActivity
             Toast.makeText(this, Constants.getActivityStringToast(this, deviceInfoUpdated.getStatus()), Toast.LENGTH_LONG).show();
 
             //It only parks if the location is inside UNISC bounds
-            if (uniscBounds.contains(latlng)) {
-                if (deviceInfoUpdated.getStatus() != DetectedActivity.IN_VEHICLE) {
-                    //Send to server info that IS_PARKED, with position saved into the database
-                    Log.i(TAG, "Inside UNISC bounds");
-                    addMarkerMap(latlng);
-                }
+            if (uniscBounds.contains(latlng) && deviceInfoUpdated.getStatus() == Constants.PARKED) {
+                //Send to server info PARKED, with position saved into the database
+                //Log.i(TAG, "Ponto está na UNISC");
+                addMarkerMap(latlng);
             }
 
             //To remove the marker and set as NOT_PARKED it can be from anywhere
-            //If is leaving the parking lot, then it updates the old position with the flag NOT_PARKED
-            if (deviceInfoUpdated.getStatus() == DetectedActivity.IN_VEHICLE) {
+            //If is leaving the parking lot, then it updates the old position with the flag NOT_PARKED and remove marker
+            if (deviceInfoUpdated.getStatus() == Constants.NOT_PARKED) {
+                //Send to server info NOT_PARKED, and remove from server database
                 removeMarkerMap(this.marker);
             }
 
@@ -541,7 +471,6 @@ public class MainActivity extends AppCompatActivity
                 Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
             }
         }
-        */
     }
 
     /**************************
@@ -556,7 +485,7 @@ public class MainActivity extends AppCompatActivity
             }
             catch (Exception e) {
                 Log.e(TAG, getString(R.string.no_connection));
-                e.printStackTrace();
+                //e.printStackTrace();
             }
 
             return null;
@@ -566,7 +495,8 @@ public class MainActivity extends AppCompatActivity
             try {
                 showStatusEstacionamentos(jsonEstacionamentosData);
             } catch (JSONException e) {
-                e.printStackTrace();
+                Log.e(TAG, getString(R.string.no_connection));
+                //e.printStackTrace();
             }
         }
     }
@@ -583,21 +513,14 @@ public class MainActivity extends AppCompatActivity
             for (int i = 0; i < array.length(); i++) {
                 JSONObject row = array.getJSONObject(i);
                 LatLng latlng = new LatLng(row.getDouble("latitude"), row.getDouble("longitude"));
-                WeightedLatLng weightedLatLng = new WeightedLatLng(latlng, 1000);
-                latLngServerDataWeighted.add(weightedLatLng);
-                latLngServerDataCluster.add(new ClusterItemMap(latlng));
-                /*if (viewMarkers) {
-                    //Remover Markers
-                    setUpMarkers(latlng);
-                }*/
+                if (row.getInt("status")!=Constants.NOT_PARKED) {
+                    WeightedLatLng weightedLatLng = new WeightedLatLng(latlng, 1000);
+                    latLngServerDataWeighted.add(weightedLatLng);
+                    latLngServerDataCluster.add(new ClusterItemMap(latlng));
+                }
             }
-            //if (viewClusters) {
-                //Remover clusters
+
             setUpClusters(latLngServerDataCluster);
-            //}
-            /*if (viewHeatmaps){
-                setUpHeatMap(latLngServerDataWeighted);
-            }*/
         }
         catch (Exception e) {
             Toast.makeText(this, getString(R.string.no_connection), Toast.LENGTH_LONG).show();
@@ -654,8 +577,6 @@ public class MainActivity extends AppCompatActivity
     {
         if (mClusterManager != null) {
             mClusterManager.clearItems();
-            Toast.makeText(this, "Atualizando mapa...", Toast.LENGTH_SHORT).show();
-            mMap.animateCamera(CameraUpdateFactory.zoomTo(18));
         }
 
         mClusterManager = new ClusterManager<ClusterItemMap>(this, mMap);
@@ -705,5 +626,18 @@ public class MainActivity extends AppCompatActivity
         Log.i(TAG, "****************Debug - Save instances activities detected****************");
         savedInstanceState.putSerializable(Constants.DETECTED_ACTIVITIES, mDetectedActivities);
         super.onSaveInstanceState(savedInstanceState);
+    }
+
+    public void sendEmailException(String exception) {
+        Intent emailIntent = new Intent(Intent.ACTION_SENDTO);
+        emailIntent.setData(Uri.parse("mailto:" + "laurotc@mx2.unisc.br"));
+        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Exception - Estacione UNISC");
+        emailIntent.putExtra(Intent.EXTRA_TEXT, exception);
+
+        try {
+            startActivity(Intent.createChooser(emailIntent, "Send email using..."));
+        } catch (android.content.ActivityNotFoundException ex) {
+            Toast.makeText(this, "No email clients installed.", Toast.LENGTH_SHORT).show();
+        }
     }
 }

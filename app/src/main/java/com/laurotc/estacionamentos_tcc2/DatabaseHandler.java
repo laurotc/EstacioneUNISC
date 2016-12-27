@@ -22,8 +22,7 @@ public class DatabaseHandler extends SQLiteOpenHelper {
     private static final String TAG = "DatabaseHandler";
 
     private static final int DATABASE_VERSION = 1;
-    //private static final String DATABASE_NAME = "estacioneUniscDatabase";
-    private static final String DATABASE_NAME = "parkAroundDatabase";
+    private static final String DATABASE_NAME = "estacioneUniscDatabase";
 
     /* Table Device Data information*/
     private static final String TABLE_DATA = "deviceData";
